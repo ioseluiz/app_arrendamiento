@@ -6,6 +6,7 @@ from app.services.mantenimiento_service import MantenimientoService
 from app.services.modelo3d_service import Modelo3DService
 from app.services.pago_servicio_service import PagoService
 from app.services.proveedor_service import ProveedorService
+from app.services.reporte_service import GastoItem, ReporteService
 
 __all__ = [
     "ApartamentoService",
@@ -16,4 +17,6 @@ __all__ = [
     "Modelo3DService",
     "PagoService",
     "ProveedorService",
+    "GastoItem",
+    "ReporteService",
 ]
