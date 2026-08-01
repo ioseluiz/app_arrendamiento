@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from sqlalchemy.exc import IntegrityError
+
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -191,5 +193,13 @@ class EquipoView(QWidget):
         )
         if respuesta != QMessageBox.Yes:
             return
-        EquipoService.eliminar(equipo_id)
+        try:
+            EquipoService.eliminar(equipo_id)
+        except IntegrityError:
+            QMessageBox.warning(
+                self,
+                "No se pudo eliminar",
+                "El equipo tiene mantenimientos asociados y no puede eliminarse.",
+            )
+            return
         self.refrescar()
