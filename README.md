@@ -89,17 +89,24 @@ Los releases de GitHub se generan automáticamente al empujar un tag `vX.Y.Z`:
 git tag v0.1.0
 git push origin v0.1.0
 ```
-Esto dispara `.github/workflows/release.yml`, que crea el Release con notas autogeneradas a partir de los commits. Por ahora no adjunta ningún binario — eso se conecta cuando esté lista la Fase 5 (empaquetado).
+Esto dispara `.github/workflows/release.yml`, que compila `Arrendamiento.app` en un runner macOS, lo comprime y lo adjunta al Release junto con notas autogeneradas a partir de los commits.
 
-## Empaquetado para macOS (fase final)
+## Empaquetado para macOS
+
 ```bash
-pip install pyinstaller
-pyinstaller --windowed --name "Arrendamiento" app/main.py
+pip install -r requirements-build.txt
+pyinstaller Arrendamiento.spec --clean --noconfirm
 ```
+
+El resultado queda en `dist/Arrendamiento.app`. Notas importantes:
+
+- **Dónde viven los datos**: la app empaquetada guarda la base de datos, los documentos y los modelos 3D en `~/Library/Application Support/Arrendamiento/`, **no** dentro del bundle (que puede no ser escribible y se reemplaza en cada reinstalación). Ver `app/paths.py`.
+- **`app/viewer3d/`** (HTML/JS/three.js vendorizado) se empaqueta como recurso de solo lectura dentro del `.app`.
+- **Sin firma de Developer ID ni notarización**: el `.app` queda con firma ad-hoc (la que aplica PyInstaller por defecto en Apple Silicon para poder ejecutarlo), pero no está firmado con un certificado de Apple Developer Program ni notarizado. Gatekeeper mostrará "no se puede verificar el desarrollador" al abrirlo por primera vez — click derecho → Abrir, o `xattr -cr Arrendamiento.app` para quitar el atributo de cuarentena. Firmar/notarizar de verdad requiere una cuenta de pago de Apple Developer Program, fuera del alcance de este repo.
 
 ## Roadmap (ver plan completo en docs/)
 1. ✅ Modelos SQLAlchemy + CRUD básico (Contrato, Documento, Equipo, Mantenimiento, Pagos, Proveedores)
 2. ✅ UI completa (PySide6) para todas las entidades, tema claro forzado (Fusion)
 3. ✅ Visor 3D con marcadores (three.js + QWebChannel, servidor HTTP local embebido)
 4. ✅ Reportes, dashboard con gráficos (QtCharts) y recordatorios de mantenimiento preventivo
-5. ⬜ Empaquetado `.app` distribuible (PyInstaller)
+5. ✅ Empaquetado `.app` distribuible (PyInstaller, ver sección arriba)
