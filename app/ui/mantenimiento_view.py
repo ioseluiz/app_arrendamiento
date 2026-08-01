@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from app.models import EntidadTipo, EstadoMantenimiento, Mantenimiento
 from app.services import (
+    DocumentoService,
     EquipoService,
     MantenimientoService,
     ProveedorService,
@@ -32,7 +33,17 @@ from app.services import (
 )
 from app.ui.documento_view import DocumentosDeEntidadDialog
 
-TICKETS_COLUMNS = ["ID", "Título", "Equipo", "Proveedor", "Estado", "Solicitud", "Completado", "Costo"]
+TICKETS_COLUMNS = [
+    "ID",
+    "Título",
+    "Equipo",
+    "Proveedor",
+    "Estado",
+    "Solicitud",
+    "Completado",
+    "Costo",
+    "Documentos",
+]
 RECORDATORIOS_COLUMNS = ["Equipo", "Frecuencia (meses)", "Último mantenimiento", "Próxima fecha", "Situación"]
 HISTORIAL_COLUMNS = ["Título", "Equipo", "Proveedor", "Fecha completado", "Costo"]
 
@@ -214,6 +225,7 @@ class TicketsMantenimientoView(QWidget):
                 mant.fecha_solicitud.isoformat(),
                 mant.fecha_completado.isoformat() if mant.fecha_completado else "",
                 f"{mant.costo:.2f}" if mant.costo is not None else "",
+                str(len(DocumentoService.listar_por_entidad(EntidadTipo.MANTENIMIENTO, mant.id))),
             ]
             for col, valor in enumerate(valores):
                 self.tabla.setItem(row, col, QTableWidgetItem(valor))
