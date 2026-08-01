@@ -15,18 +15,18 @@ class Apartamento(Base):
     habitaciones: Mapped[int | None] = mapped_column(Integer, nullable=True)
     banos: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    contratos: Mapped[list["Contrato"]] = relationship(
+    contratos: Mapped[list[Contrato]] = relationship(
         back_populates="apartamento", cascade="all, delete-orphan"
     )
-    equipos: Mapped[list["Equipo"]] = relationship(
+    equipos: Mapped[list[Equipo]] = relationship(
         back_populates="apartamento", cascade="all, delete-orphan"
     )
-    mantenimientos: Mapped[list["Mantenimiento"]] = relationship(
+    mantenimientos: Mapped[list[Mantenimiento]] = relationship(
         back_populates="apartamento", cascade="all, delete-orphan"
     )
-    pagos_servicio: Mapped[list["PagoServicio"]] = relationship(
+    pagos_servicio: Mapped[list[PagoServicio]] = relationship(
         back_populates="apartamento", cascade="all, delete-orphan"
     )
-    modelo_3d: Mapped["Modelo3D | None"] = relationship(
+    modelo_3d: Mapped[Modelo3D | None] = relationship(
         back_populates="apartamento", uselist=False, cascade="all, delete-orphan"
     )

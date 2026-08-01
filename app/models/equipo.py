@@ -3,7 +3,8 @@ from __future__ import annotations
 import enum
 from datetime import date
 
-from sqlalchemy import Date, Enum as SqlEnum, ForeignKey, Integer, String
+from sqlalchemy import Date, ForeignKey, Integer, String
+from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -29,6 +30,7 @@ class Equipo(Base):
         default=EstadoEquipo.OPERATIVO,
         nullable=False,
     )
+    frecuencia_mantenimiento_meses: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    apartamento: Mapped["Apartamento"] = relationship(back_populates="equipos")
-    mantenimientos: Mapped[list["Mantenimiento"]] = relationship(back_populates="equipo")
+    apartamento: Mapped[Apartamento] = relationship(back_populates="equipos")
+    mantenimientos: Mapped[list[Mantenimiento]] = relationship(back_populates="equipo")

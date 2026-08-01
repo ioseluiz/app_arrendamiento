@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from sqlalchemy.exc import IntegrityError
-
 from PySide6.QtCore import QDate
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -15,16 +13,18 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+from sqlalchemy.exc import IntegrityError
 
 from app.models import Equipo, EstadoEquipo
 from app.services import EquipoService
 
-COLUMNS = ["ID", "Nombre", "Tipo", "Ubicación", "Fecha instalación", "Estado"]
+COLUMNS = ["ID", "Nombre", "Tipo", "Ubicación", "Fecha instalación", "Estado", "Frecuencia mant. (meses)"]
 
 
 class EquipoFormDialog(QDialog):
@@ -48,6 +48,11 @@ class EquipoFormDialog(QDialog):
         for estado in EstadoEquipo:
             self.estado.addItem(estado.value, estado)
 
+        self.frecuencia_mantenimiento_meses = QSpinBox()
+        self.frecuencia_mantenimiento_meses.setRange(0, 60)
+        self.frecuencia_mantenimiento_meses.setSpecialValueText("(sin programar)")
+        self.frecuencia_mantenimiento_meses.setSuffix(" meses")
+
         if equipo is not None:
             self.nombre.setText(equipo.nombre)
             self.tipo.setText(equipo.tipo)
@@ -58,6 +63,7 @@ class EquipoFormDialog(QDialog):
             else:
                 self.sin_fecha_instalacion.setChecked(True)
             self.estado.setCurrentIndex(self.estado.findData(equipo.estado))
+            self.frecuencia_mantenimiento_meses.setValue(equipo.frecuencia_mantenimiento_meses or 0)
         else:
             self.sin_fecha_instalacion.setChecked(True)
 
@@ -67,6 +73,7 @@ class EquipoFormDialog(QDialog):
         form.addRow("Ubicación", self.ubicacion)
         form.addRow("Fecha instalación", fila_fecha)
         form.addRow("Estado", self.estado)
+        form.addRow("Mantenimiento preventivo cada", self.frecuencia_mantenimiento_meses)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self._validar_y_aceptar)
@@ -91,6 +98,7 @@ class EquipoFormDialog(QDialog):
                 None if self.sin_fecha_instalacion.isChecked() else self.fecha_instalacion.date().toPython()
             ),
             "estado": self.estado.currentData(),
+            "frecuencia_mantenimiento_meses": self.frecuencia_mantenimiento_meses.value() or None,
         }
 
 
@@ -141,6 +149,7 @@ class EquipoView(QWidget):
                 equipo.ubicacion or "",
                 equipo.fecha_instalacion.isoformat() if equipo.fecha_instalacion else "",
                 equipo.estado.value,
+                str(equipo.frecuencia_mantenimiento_meses) if equipo.frecuencia_mantenimiento_meses else "",
             ]
             for col, valor in enumerate(valores):
                 self.tabla.setItem(row, col, QTableWidgetItem(valor))

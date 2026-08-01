@@ -15,6 +15,7 @@ class EquipoService:
         ubicacion: str | None = None,
         fecha_instalacion: date | None = None,
         estado: EstadoEquipo = EstadoEquipo.OPERATIVO,
+        frecuencia_mantenimiento_meses: int | None = None,
     ) -> Equipo:
         with SessionLocal() as session:
             repo = EquipoRepository(session)
@@ -26,6 +27,7 @@ class EquipoService:
                     ubicacion=ubicacion,
                     fecha_instalacion=fecha_instalacion,
                     estado=estado,
+                    frecuencia_mantenimiento_meses=frecuencia_mantenimiento_meses,
                 )
             )
             session.commit()

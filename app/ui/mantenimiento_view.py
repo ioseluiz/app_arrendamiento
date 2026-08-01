@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -10,20 +10,30 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from app.models import EstadoMantenimiento, Mantenimiento
-from app.services import EquipoService, MantenimientoService, ProveedorService
+from app.services import (
+    EquipoService,
+    MantenimientoService,
+    ProveedorService,
+    RecordatorioService,
+    ReporteService,
+)
 
-COLUMNS = ["ID", "Título", "Equipo", "Proveedor", "Estado", "Solicitud", "Completado", "Costo"]
+TICKETS_COLUMNS = ["ID", "Título", "Equipo", "Proveedor", "Estado", "Solicitud", "Completado", "Costo"]
+RECORDATORIOS_COLUMNS = ["Equipo", "Frecuencia (meses)", "Último mantenimiento", "Próxima fecha", "Situación"]
+HISTORIAL_COLUMNS = ["Título", "Equipo", "Proveedor", "Fecha completado", "Costo"]
 
 
 class MantenimientoFormDialog(QDialog):
@@ -32,6 +42,8 @@ class MantenimientoFormDialog(QDialog):
         apartamento_id: int,
         parent: QWidget | None = None,
         mantenimiento: Mantenimiento | None = None,
+        equipo_id_sugerido: int | None = None,
+        titulo_sugerido: str | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(
@@ -73,6 +85,11 @@ class MantenimientoFormDialog(QDialog):
             fs = mantenimiento.fecha_solicitud
             self.fecha_solicitud.setDate(QDate(fs.year, fs.month, fs.day))
             self.costo.setValue(mantenimiento.costo or 0)
+        else:
+            if equipo_id_sugerido is not None:
+                self.equipo.setCurrentIndex(self.equipo.findData(equipo_id_sugerido))
+            if titulo_sugerido:
+                self.titulo.setText(titulo_sugerido)
 
         form = QFormLayout()
         form.addRow("Título", self.titulo)
@@ -141,13 +158,13 @@ class MarcarCompletadoDialog(QDialog):
         }
 
 
-class MantenimientoView(QWidget):
+class TicketsMantenimientoView(QWidget):
     def __init__(self, apartamento_id: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.apartamento_id = apartamento_id
 
-        self.tabla = QTableWidget(0, len(COLUMNS))
-        self.tabla.setHorizontalHeaderLabels(COLUMNS)
+        self.tabla = QTableWidget(0, len(TICKETS_COLUMNS))
+        self.tabla.setHorizontalHeaderLabels(TICKETS_COLUMNS)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -258,3 +275,154 @@ class MantenimientoView(QWidget):
             return
         MantenimientoService.eliminar(mant_id)
         self.refrescar()
+
+
+class RecordatoriosMantenimientoView(QWidget):
+    def __init__(self, apartamento_id: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.apartamento_id = apartamento_id
+
+        self.tabla = QTableWidget(0, len(RECORDATORIOS_COLUMNS))
+        self.tabla.setHorizontalHeaderLabels(RECORDATORIOS_COLUMNS)
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla.horizontalHeader().setStretchLastSection(True)
+
+        btn_crear_ticket = QPushButton("Crear ticket de mantenimiento")
+        btn_crear_ticket.clicked.connect(self._crear_ticket)
+        btn_refrescar = QPushButton("Refrescar")
+        btn_refrescar.clicked.connect(self.refrescar)
+
+        botones = QHBoxLayout()
+        botones.addWidget(btn_crear_ticket)
+        botones.addStretch()
+        botones.addWidget(btn_refrescar)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            QLabel(
+                "Equipos con frecuencia de mantenimiento preventivo definida (pestaña Equipos) "
+                "que están vencidos o próximos a vencer (30 días)."
+            )
+        )
+        layout.addLayout(botones)
+        layout.addWidget(self.tabla)
+
+        self.refrescar()
+
+    def refrescar(self) -> None:
+        recordatorios = RecordatorioService.proximos_mantenimientos(self.apartamento_id, dias=30)
+        self.tabla.setRowCount(0)
+        for r in recordatorios:
+            row = self.tabla.rowCount()
+            self.tabla.insertRow(row)
+            situacion = (
+                f"Vencido hace {-r.dias_restantes} días"
+                if r.dias_restantes < 0
+                else f"En {r.dias_restantes} días"
+            )
+            valores = [
+                r.equipo_nombre,
+                str(r.frecuencia_meses),
+                r.ultimo_mantenimiento.isoformat() if r.ultimo_mantenimiento else "(nunca)",
+                r.proxima_fecha.isoformat(),
+                situacion,
+            ]
+            for col, valor in enumerate(valores):
+                item = QTableWidgetItem(valor)
+                if col == 0:
+                    item.setData(Qt.UserRole, r.equipo_id)
+                self.tabla.setItem(row, col, item)
+
+    def _selected_equipo_id(self) -> int | None:
+        row = self.tabla.currentRow()
+        if row < 0:
+            return None
+        item = self.tabla.item(row, 0)
+        return item.data(Qt.UserRole) if item else None
+
+    def _crear_ticket(self) -> None:
+        equipo_id = self._selected_equipo_id()
+        if equipo_id is None:
+            QMessageBox.information(self, "Crear ticket", "Selecciona un recordatorio de la tabla.")
+            return
+        equipo = EquipoService.obtener(equipo_id)
+        titulo_sugerido = f"Mantenimiento preventivo: {equipo.nombre}" if equipo else None
+        dialog = MantenimientoFormDialog(
+            self.apartamento_id, self, equipo_id_sugerido=equipo_id, titulo_sugerido=titulo_sugerido
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+        try:
+            MantenimientoService.crear(apartamento_id=self.apartamento_id, **dialog.datos())
+        except ValueError as exc:
+            QMessageBox.warning(self, "Error", str(exc))
+            return
+        self.refrescar()
+
+
+class HistorialMantenimientoView(QWidget):
+    def __init__(self, apartamento_id: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.apartamento_id = apartamento_id
+
+        self.tabla = QTableWidget(0, len(HISTORIAL_COLUMNS))
+        self.tabla.setHorizontalHeaderLabels(HISTORIAL_COLUMNS)
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla.horizontalHeader().setStretchLastSection(True)
+
+        btn_refrescar = QPushButton("Refrescar")
+        btn_refrescar.clicked.connect(self.refrescar)
+
+        botones = QHBoxLayout()
+        botones.addStretch()
+        botones.addWidget(btn_refrescar)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(botones)
+        layout.addWidget(self.tabla)
+
+        self.refrescar()
+
+    def refrescar(self) -> None:
+        historial = ReporteService.historial_mantenimientos(self.apartamento_id)
+        self.tabla.setRowCount(0)
+        for mant in historial:
+            row = self.tabla.rowCount()
+            self.tabla.insertRow(row)
+            valores = [
+                mant.titulo,
+                mant.equipo.nombre if mant.equipo_id else "",
+                mant.proveedor.nombre if mant.proveedor_id else "",
+                mant.fecha_completado.isoformat() if mant.fecha_completado else "",
+                f"{mant.costo:.2f}" if mant.costo is not None else "",
+            ]
+            for col, valor in enumerate(valores):
+                self.tabla.setItem(row, col, QTableWidgetItem(valor))
+
+
+class MantenimientoView(QWidget):
+    def __init__(self, apartamento_id: int, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.apartamento_id = apartamento_id
+
+        self.tickets_view = TicketsMantenimientoView(apartamento_id)
+        self.recordatorios_view = RecordatoriosMantenimientoView(apartamento_id)
+        self.historial_view = HistorialMantenimientoView(apartamento_id)
+
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self.tickets_view, "Tickets")
+        self._tabs.addTab(self.recordatorios_view, "Recordatorios preventivos")
+        self._tabs.addTab(self.historial_view, "Historial")
+        self._tabs.currentChanged.connect(self._al_cambiar_subtab)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self._tabs)
+
+    def _al_cambiar_subtab(self, index: int) -> None:
+        self._tabs.widget(index).refrescar()
+
+    def refrescar(self) -> None:
+        self._tabs.currentWidget().refrescar()
