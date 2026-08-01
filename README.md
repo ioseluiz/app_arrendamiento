@@ -57,10 +57,9 @@ arrendamiento_app/
    python -m app.main
    ```
 
-## requirements.txt (sugerido)
+## Dependencias (`requirements.txt`)
 ```
 PySide6>=6.6
-PySide6-WebEngine>=6.6
 SQLAlchemy>=2.0
 Pillow>=10.0
 pypdf>=4.0
@@ -68,7 +67,29 @@ pdf2image>=1.17
 alembic>=1.13
 ```
 
-> Nota: `pdf2image` requiere `poppler` instalado en el sistema (`brew install poppler`).
+> Notas:
+> - `pdf2image` requiere `poppler` instalado en el sistema (`brew install poppler`).
+> - `PySide6-WebEngine` no se instala aparte: `QtWebEngineWidgets`, `QtWebChannel` y `QtCharts` (visor 3D y dashboard) ya vienen incluidos en `PySide6`/`PySide6-Addons`.
+
+Para desarrollo (lint) instalar además:
+```bash
+pip install -r requirements-dev.txt
+```
+
+## Desarrollo
+
+- **Lint**: `ruff check .` (configurado en `pyproject.toml`).
+- **Chequeo de arranque**: `QT_QPA_PLATFORM=offscreen python scripts/smoke_check.py` — levanta la ventana principal sin mostrarla y valida que todas las pestañas cargan sin errores. No sustituye pruebas unitarias (todavía no hay suite de tests), pero atrapa errores de import/arranque.
+- **CI**: `.github/workflows/ci.yml` corre lint + chequeo de arranque en cada push/PR a `main`.
+
+## Versionado y releases
+
+Los releases de GitHub se generan automáticamente al empujar un tag `vX.Y.Z`:
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+Esto dispara `.github/workflows/release.yml`, que crea el Release con notas autogeneradas a partir de los commits. Por ahora no adjunta ningún binario — eso se conecta cuando esté lista la Fase 5 (empaquetado).
 
 ## Empaquetado para macOS (fase final)
 ```bash
@@ -77,8 +98,8 @@ pyinstaller --windowed --name "Arrendamiento" app/main.py
 ```
 
 ## Roadmap (ver plan completo en docs/)
-1. Modelos SQLAlchemy + CRUD básico (Contrato, Documento, Equipo)
-2. Mantenimiento y pagos de servicios
-3. Visor 3D con marcadores (three.js + QWebChannel)
-4. Reportes (gastos, mantenimiento pendiente, vencimientos)
-5. Empaquetado `.app` distribuible
+1. ✅ Modelos SQLAlchemy + CRUD básico (Contrato, Documento, Equipo, Mantenimiento, Pagos, Proveedores)
+2. ✅ UI completa (PySide6) para todas las entidades, tema claro forzado (Fusion)
+3. ✅ Visor 3D con marcadores (three.js + QWebChannel, servidor HTTP local embebido)
+4. ✅ Reportes, dashboard con gráficos (QtCharts) y recordatorios de mantenimiento preventivo
+5. ⬜ Empaquetado `.app` distribuible (PyInstaller)

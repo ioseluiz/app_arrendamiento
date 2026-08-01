@@ -1,0 +1,17 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+# E501: el formateo de línea larga no es crítico aquí.
+# UP042: mantenemos `class X(str, enum.Enum)` en vez de `enum.StrEnum` porque
+# es el patrón que SQLAlchemy (Enum(..., native_enum=False)) espera y ya está
+# probado en todo el proyecto; migrar es un cambio de comportamiento a evaluar aparte.
+ignore = ["E501", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+# Las relaciones de SQLAlchemy usan referencias de tipo en string ("Contrato")
+# a propósito para evitar imports circulares entre módulos de app/models;
+# ruff no puede resolverlas estáticamente (falso positivo).
+"app/models/*.py" = ["F821"]
