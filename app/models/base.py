@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-DB_PATH = DATA_DIR / "app.db"
+from app.paths import DATA_DIR, DB_PATH
 
 
 class Base(DeclarativeBase):
     pass
 
 
-def get_engine(db_path: Path = DB_PATH):
+def get_engine(db_path=DB_PATH):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     return create_engine(f"sqlite:///{db_path}")
 

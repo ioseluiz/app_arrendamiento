@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import threading
-from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 from PySide6.QtCore import QObject, QUrl, Signal, Slot
 from PySide6.QtWebChannel import QWebChannel
@@ -24,16 +24,34 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import EntidadTipo
-from app.models.base import DATA_DIR
+from app.paths import DATA_DIR, VIEWER3D_DIR
 from app.services import EquipoService, MantenimientoService, Modelo3DService
 
-PROJECT_ROOT = DATA_DIR.parent
-VIEWER3D_URL_PATH = "app/viewer3d/index.html"
+VIEWER3D_URL_PATH = "index.html"
+
+
+class _ViewerRequestHandler(SimpleHTTPRequestHandler):
+    """Sirve los assets del visor (empaquetados, solo lectura) desde
+    VIEWER3D_DIR, y los modelos .glb/.gltf importados por el usuario
+    (escribibles, fuera del bundle) desde DATA_DIR bajo el prefijo /data/.
+    Ambos árboles pueden vivir en ubicaciones completamente distintas
+    cuando la app corre empaquetada (PyInstaller)."""
+
+    def translate_path(self, path: str) -> str:
+        path = unquote(path.split("?", 1)[0].split("#", 1)[0])
+        if path.startswith("/data/"):
+            base, relativa = DATA_DIR, path[len("/data/") :]
+        else:
+            base, relativa = VIEWER3D_DIR, path.lstrip("/")
+        base = base.resolve()
+        destino = (base / relativa).resolve()
+        if destino != base and base not in destino.parents:
+            destino = base
+        return str(destino)
 
 
 def _iniciar_servidor_local() -> ThreadingHTTPServer:
-    handler = partial(SimpleHTTPRequestHandler, directory=str(PROJECT_ROOT))
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _ViewerRequestHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
@@ -171,7 +189,7 @@ class Viewer3DView(QWidget):
         modelo = Modelo3DService.obtener_por_apartamento(self.apartamento_id)
         if modelo is None:
             return
-        self.bridge.cargar_modelo.emit(self._url(modelo.archivo_modelo).toString())
+        self.bridge.cargar_modelo.emit(self._url(f"data/{modelo.archivo_modelo}").toString())
         for marcador in Modelo3DService.listar_marcadores(modelo.id):
             self.bridge.agregar_marcador.emit(
                 marcador.id, marcador.pos_x, marcador.pos_y, marcador.pos_z, marcador.etiqueta

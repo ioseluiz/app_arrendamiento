@@ -5,11 +5,10 @@ from datetime import date
 from pathlib import Path
 
 from app.models import EntidadTipo, Marcador, Modelo3D, SessionLocal
-from app.models.base import DATA_DIR
+from app.paths import DATA_DIR
 from app.repositories import MarcadorRepository, Modelo3DRepository
 
 MODELOS_DIR = DATA_DIR / "modelos_3d"
-PROJECT_ROOT = DATA_DIR.parent
 FORMATOS_SOPORTADOS = {".glb", ".gltf"}
 
 
@@ -31,7 +30,7 @@ class Modelo3DService:
             destino = MODELOS_DIR / f"{ruta_origen.stem}_{contador}{ruta_origen.suffix}"
             contador += 1
         shutil.copy2(ruta_origen, destino)
-        ruta_relativa = str(destino.relative_to(PROJECT_ROOT))
+        ruta_relativa = str(destino.relative_to(DATA_DIR))
 
         with SessionLocal() as session:
             repo = Modelo3DRepository(session)

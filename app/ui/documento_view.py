@@ -24,13 +24,12 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import EntidadTipo, TipoDocumento
-from app.models.base import DATA_DIR
+from app.paths import DATA_DIR
 from app.services import DocumentoService
 
 COLUMNS = ["ID", "Tipo", "Archivo", "Asociado a", "ID entidad", "Fecha subida"]
 
 DOCUMENTOS_DIR = DATA_DIR / "documentos"
-PROJECT_ROOT = DATA_DIR.parent
 
 
 class DocumentoFormDialog(QDialog):
@@ -99,7 +98,7 @@ class DocumentoFormDialog(QDialog):
         return {
             "tipo": self.tipo.currentData(),
             "nombre_archivo": self._ruta_origen.name,
-            "ruta_archivo": str(destino.relative_to(PROJECT_ROOT)),
+            "ruta_archivo": str(destino.relative_to(DATA_DIR)),
             "entidad_tipo": self.entidad_tipo.currentData(),
             "entidad_id": self.entidad_id.value(),
             "fecha_subida": self.fecha_subida.date().toPython(),
