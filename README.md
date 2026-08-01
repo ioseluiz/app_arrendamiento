@@ -62,11 +62,13 @@ arrendamiento_app/
 PySide6>=6.6
 SQLAlchemy>=2.0
 Pillow>=10.0
+pypdf>=4.0
 alembic>=1.13
 ```
 
 > Notas:
 > - `PySide6-WebEngine` no se instala aparte: `QtWebEngineWidgets`, `QtWebChannel`, `QtCharts` (visor 3D y dashboard) y `QtPdf`/`QtPdfWidgets` (previsualización de documentos PDF) ya vienen incluidos en `PySide6`/`PySide6-Addons`.
+> - `pypdf` se usa para fusionar las facturas (PDF) dentro del reporte de mantenimientos generado; la generación del PDF en sí (texto + fotos) usa `QTextDocument`/`QPrinter`, nativos de PySide6.
 
 Para desarrollo (lint) instalar además:
 ```bash

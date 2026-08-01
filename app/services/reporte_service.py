@@ -75,12 +75,30 @@ class ReporteService:
         return pendientes
 
     @staticmethod
-    def historial_mantenimientos(apartamento_id: int) -> list[Mantenimiento]:
+    def historial_mantenimientos(
+        apartamento_id: int,
+        equipo_id: int | None = None,
+        proveedor_id: int | None = None,
+        fecha_desde: date | None = None,
+        fecha_hasta: date | None = None,
+    ) -> list[Mantenimiento]:
         completados = [
             m
             for m in MantenimientoService.listar_por_apartamento(apartamento_id)
             if m.estado == EstadoMantenimiento.COMPLETADO
         ]
+        if equipo_id is not None:
+            completados = [m for m in completados if m.equipo_id == equipo_id]
+        if proveedor_id is not None:
+            completados = [m for m in completados if m.proveedor_id == proveedor_id]
+        if fecha_desde is not None:
+            completados = [
+                m for m in completados if (m.fecha_completado or m.fecha_solicitud) >= fecha_desde
+            ]
+        if fecha_hasta is not None:
+            completados = [
+                m for m in completados if (m.fecha_completado or m.fecha_solicitud) <= fecha_hasta
+            ]
         completados.sort(key=lambda m: m.fecha_completado or m.fecha_solicitud, reverse=True)
         return completados
 

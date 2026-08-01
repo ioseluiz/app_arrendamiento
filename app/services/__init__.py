@@ -7,6 +7,11 @@ from app.services.modelo3d_service import Modelo3DService
 from app.services.pago_servicio_service import PagoService
 from app.services.proveedor_service import ProveedorService
 from app.services.recordatorio_service import RecordatorioMantenimiento, RecordatorioService
+from app.services.reporte_pdf_service import (
+    FiltroMantenimientos,
+    generar_reporte_mantenimientos,
+    mantenimientos_completados_filtrados,
+)
 from app.services.reporte_service import GastoItem, ReporteService, ResumenDashboard
 
 __all__ = [
@@ -20,6 +25,9 @@ __all__ = [
     "ProveedorService",
     "RecordatorioMantenimiento",
     "RecordatorioService",
+    "FiltroMantenimientos",
+    "generar_reporte_mantenimientos",
+    "mantenimientos_completados_filtrados",
     "GastoItem",
     "ReporteService",
     "ResumenDashboard",

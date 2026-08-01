@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QDate, Qt
+from pathlib import Path
+
+from PySide6.QtCore import QDate, Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QDateEdit,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -26,10 +31,12 @@ from app.models import EntidadTipo, EstadoMantenimiento, Mantenimiento
 from app.services import (
     DocumentoService,
     EquipoService,
+    FiltroMantenimientos,
     MantenimientoService,
     ProveedorService,
     RecordatorioService,
-    ReporteService,
+    generar_reporte_mantenimientos,
+    mantenimientos_completados_filtrados,
 )
 from app.ui.documento_view import DocumentosDeEntidadDialog
 
@@ -395,27 +402,102 @@ class HistorialMantenimientoView(QWidget):
         super().__init__(parent)
         self.apartamento_id = apartamento_id
 
+        self.filtro_equipo = QComboBox()
+        self.filtro_equipo.currentIndexChanged.connect(self.refrescar)
+
+        self.filtro_proveedor = QComboBox()
+        self.filtro_proveedor.currentIndexChanged.connect(self.refrescar)
+
+        self.fecha_desde = QDateEdit(calendarPopup=True)
+        self.fecha_desde.setDate(QDate.currentDate().addMonths(-6))
+        self.fecha_desde.setEnabled(False)
+        self.fecha_desde.dateChanged.connect(self.refrescar)
+        self.sin_fecha_desde = QCheckBox("Sin límite")
+        self.sin_fecha_desde.setChecked(True)
+        self.sin_fecha_desde.toggled.connect(lambda activo: self.fecha_desde.setDisabled(activo))
+        self.sin_fecha_desde.toggled.connect(self.refrescar)
+
+        self.fecha_hasta = QDateEdit(calendarPopup=True)
+        self.fecha_hasta.setDate(QDate.currentDate())
+        self.fecha_hasta.setEnabled(False)
+        self.fecha_hasta.dateChanged.connect(self.refrescar)
+        self.sin_fecha_hasta = QCheckBox("Sin límite")
+        self.sin_fecha_hasta.setChecked(True)
+        self.sin_fecha_hasta.toggled.connect(lambda activo: self.fecha_hasta.setDisabled(activo))
+        self.sin_fecha_hasta.toggled.connect(self.refrescar)
+
+        filtros = QHBoxLayout()
+        filtros.addWidget(QLabel("Equipo:"))
+        filtros.addWidget(self.filtro_equipo)
+        filtros.addWidget(QLabel("Proveedor:"))
+        filtros.addWidget(self.filtro_proveedor)
+        filtros.addWidget(QLabel("Desde:"))
+        filtros.addWidget(self.fecha_desde)
+        filtros.addWidget(self.sin_fecha_desde)
+        filtros.addWidget(QLabel("Hasta:"))
+        filtros.addWidget(self.fecha_hasta)
+        filtros.addWidget(self.sin_fecha_hasta)
+        filtros.addStretch()
+
         self.tabla = QTableWidget(0, len(HISTORIAL_COLUMNS))
         self.tabla.setHorizontalHeaderLabels(HISTORIAL_COLUMNS)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla.horizontalHeader().setStretchLastSection(True)
 
+        btn_generar_pdf = QPushButton("Generar reporte PDF...")
+        btn_generar_pdf.clicked.connect(self._generar_reporte)
         btn_refrescar = QPushButton("Refrescar")
         btn_refrescar.clicked.connect(self.refrescar)
 
         botones = QHBoxLayout()
+        botones.addWidget(btn_generar_pdf)
         botones.addStretch()
         botones.addWidget(btn_refrescar)
 
         layout = QVBoxLayout(self)
+        layout.addLayout(filtros)
         layout.addLayout(botones)
         layout.addWidget(self.tabla)
 
         self.refrescar()
 
+    def _filtro_actual(self) -> FiltroMantenimientos:
+        return FiltroMantenimientos(
+            apartamento_id=self.apartamento_id,
+            equipo_id=self.filtro_equipo.currentData(),
+            proveedor_id=self.filtro_proveedor.currentData(),
+            fecha_desde=None if self.sin_fecha_desde.isChecked() else self.fecha_desde.date().toPython(),
+            fecha_hasta=None if self.sin_fecha_hasta.isChecked() else self.fecha_hasta.date().toPython(),
+        )
+
+    def _repoblar_combo(self, combo: QComboBox, etiqueta_todos: str, opciones: list[tuple[str, int]]) -> None:
+        # Los equipos/proveedores pueden crearse en otra pestaña mientras esta
+        # vista ya está construida; se repuebla en cada refrescar() en vez de
+        # una sola vez en __init__, preservando la selección si sigue existiendo.
+        seleccion_actual = combo.currentData()
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(etiqueta_todos, None)
+        for etiqueta, valor_id in opciones:
+            combo.addItem(etiqueta, valor_id)
+        indice = combo.findData(seleccion_actual)
+        combo.setCurrentIndex(indice if indice >= 0 else 0)
+        combo.blockSignals(False)
+
     def refrescar(self) -> None:
-        historial = ReporteService.historial_mantenimientos(self.apartamento_id)
+        self._repoblar_combo(
+            self.filtro_equipo,
+            "Todos los equipos",
+            [(e.nombre, e.id) for e in EquipoService.listar_por_apartamento(self.apartamento_id)],
+        )
+        self._repoblar_combo(
+            self.filtro_proveedor,
+            "Todos los proveedores",
+            [(p.nombre, p.id) for p in ProveedorService.listar()],
+        )
+
+        historial = mantenimientos_completados_filtrados(self._filtro_actual())
         self.tabla.setRowCount(0)
         for mant in historial:
             row = self.tabla.rowCount()
@@ -429,6 +511,41 @@ class HistorialMantenimientoView(QWidget):
             ]
             for col, valor in enumerate(valores):
                 self.tabla.setItem(row, col, QTableWidgetItem(valor))
+
+    def _generar_reporte(self) -> None:
+        filtro = self._filtro_actual()
+        cantidad_preliminar = len(mantenimientos_completados_filtrados(filtro))
+        if cantidad_preliminar == 0:
+            QMessageBox.information(
+                self, "Generar reporte", "No hay mantenimientos completados que coincidan con el filtro."
+            )
+            return
+
+        ruta, _ = QFileDialog.getSaveFileName(
+            self,
+            "Guardar reporte de mantenimientos",
+            str(Path.home() / "reporte_mantenimientos.pdf"),
+            "PDF (*.pdf)",
+        )
+        if not ruta:
+            return
+        if not ruta.lower().endswith(".pdf"):
+            ruta += ".pdf"
+
+        try:
+            cantidad = generar_reporte_mantenimientos(filtro, Path(ruta))
+        except Exception as exc:  # generación de PDF/fusión: variedad de fallos de E/S no enumerables
+            QMessageBox.warning(self, "Error", f"No se pudo generar el reporte:\n{exc}")
+            return
+
+        respuesta = QMessageBox.question(
+            self,
+            "Reporte generado",
+            f"Se generó el reporte con {cantidad} mantenimiento(s) en:\n{ruta}\n\n¿Abrirlo ahora?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if respuesta == QMessageBox.Yes:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(ruta))
 
 
 class MantenimientoView(QWidget):
