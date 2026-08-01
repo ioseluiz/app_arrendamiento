@@ -2,17 +2,10 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtWidgets import QApplication
 
 from app.models import init_db
-
-
-class MainWindow(QMainWindow):
-    def __init__(self) -> None:
-        super().__init__()
-        self.setWindowTitle("Arrendamiento")
-        self.resize(900, 600)
-        self.setCentralWidget(QLabel("Arrendamiento App"))
+from app.ui.main_window import MainWindow
 
 
 def main() -> None:

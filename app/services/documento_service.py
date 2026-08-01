@@ -37,6 +37,11 @@ class DocumentoService:
             return DocumentoRepository(session).get(documento_id)
 
     @staticmethod
+    def listar() -> list[Documento]:
+        with SessionLocal() as session:
+            return DocumentoRepository(session).list()
+
+    @staticmethod
     def listar_por_entidad(entidad_tipo: EntidadTipo, entidad_id: int) -> list[Documento]:
         with SessionLocal() as session:
             return DocumentoRepository(session).list_by_entidad(entidad_tipo, entidad_id)

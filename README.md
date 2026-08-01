@@ -52,9 +52,9 @@ arrendamiento_app/
    mkdir -p data/documentos data/modelos_3d
    ```
 
-5. Ejecutar la app:
+5. Ejecutar la app (como módulo, desde la raíz del proyecto — `python app/main.py` falla porque el código usa imports absolutos del paquete `app`):
    ```bash
-   python app/main.py
+   python -m app.main
    ```
 
 ## requirements.txt (sugerido)
