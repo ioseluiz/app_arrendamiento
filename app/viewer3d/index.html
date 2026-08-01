@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Visor 3D</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1e1e1e; }
+  #viewer { width: 100%; height: 100%; display: block; }
+  #overlay {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    color: #ddd;
+    font: 12px -apple-system, sans-serif;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 6px 10px;
+    border-radius: 4px;
+    pointer-events: none;
+    max-width: 70%;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/loaders/GLTFLoader.js": "./vendor/three/examples/jsm/loaders/GLTFLoader.js",
+    "three/addons/controls/OrbitControls.js": "./vendor/three/examples/jsm/controls/OrbitControls.js"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="viewer"></canvas>
+<div id="overlay">Sin modelo cargado</div>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

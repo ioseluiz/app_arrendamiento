@@ -27,3 +27,6 @@ class Apartamento(Base):
     pagos_servicio: Mapped[list["PagoServicio"]] = relationship(
         back_populates="apartamento", cascade="all, delete-orphan"
     )
+    modelo_3d: Mapped["Modelo3D | None"] = relationship(
+        back_populates="apartamento", uselist=False, cascade="all, delete-orphan"
+    )

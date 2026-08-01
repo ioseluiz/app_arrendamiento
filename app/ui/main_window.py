@@ -10,6 +10,7 @@ from app.ui.equipo_view import EquipoView
 from app.ui.mantenimiento_view import MantenimientoView
 from app.ui.pago_servicio_view import PagoView
 from app.ui.proveedor_view import ProveedorView
+from app.ui.viewer3d_view import Viewer3DView
 
 
 class MainWindow(QMainWindow):
@@ -28,6 +29,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(MantenimientoView(apartamento_id), "Mantenimiento")
         tabs.addTab(PagoView(apartamento_id), "Pagos")
         tabs.addTab(DocumentoView(), "Documentos")
+        tabs.addTab(Viewer3DView(apartamento_id), "Modelo 3D")
         self.setCentralWidget(tabs)
 
     @staticmethod

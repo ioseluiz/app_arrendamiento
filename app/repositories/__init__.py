@@ -3,6 +3,8 @@ from app.repositories.contrato_repository import ContratoRepository
 from app.repositories.documento_repository import DocumentoRepository
 from app.repositories.equipo_repository import EquipoRepository
 from app.repositories.mantenimiento_repository import MantenimientoRepository
+from app.repositories.marcador_repository import MarcadorRepository
+from app.repositories.modelo3d_repository import Modelo3DRepository
 from app.repositories.pago_servicio_repository import PagoServicioRepository
 from app.repositories.proveedor_repository import ProveedorRepository
 
@@ -12,6 +14,8 @@ __all__ = [
     "DocumentoRepository",
     "EquipoRepository",
     "MantenimientoRepository",
+    "MarcadorRepository",
+    "Modelo3DRepository",
     "PagoServicioRepository",
     "ProveedorRepository",
 ]
