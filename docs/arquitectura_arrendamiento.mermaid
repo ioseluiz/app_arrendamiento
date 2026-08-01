@@ -1,0 +1,56 @@
+graph TB
+    subgraph PRES["Presentación - PySide6"]
+        UI[Ventana Principal]
+        UI_C[Vista Contrato]
+        UI_M[Vista Mantenimiento]
+        UI_P[Vista Pagos]
+        UI_E[Vista Equipos]
+        UI_3D[Visor 3D<br/>QWebEngineView + three.js]
+    end
+
+    subgraph LOGICA["Lógica de Negocio (Services)"]
+        SVC_C[ContratoService]
+        SVC_M[MantenimientoService]
+        SVC_P[PagoService]
+        SVC_E[EquipoService]
+        SVC_D[DocumentoService]
+        SVC_3D[Modelo3DService]
+    end
+
+    subgraph DATOS["Acceso a Datos"]
+        REPO[Repositorios SQLAlchemy]
+    end
+
+    subgraph STORAGE["Almacenamiento"]
+        DB[(SQLite - app.db)]
+        FS[/Sistema de Archivos<br/>fotos y PDFs/]
+        M3D[/Archivos .glb .gltf/]
+    end
+
+    UI --> UI_C
+    UI --> UI_M
+    UI --> UI_P
+    UI --> UI_E
+    UI --> UI_3D
+
+    UI_C --> SVC_C
+    UI_M --> SVC_M
+    UI_P --> SVC_P
+    UI_E --> SVC_E
+    UI_3D --> SVC_3D
+
+    UI_C --> SVC_D
+    UI_M --> SVC_D
+    UI_P --> SVC_D
+    UI_E --> SVC_D
+
+    SVC_C --> REPO
+    SVC_M --> REPO
+    SVC_P --> REPO
+    SVC_E --> REPO
+    SVC_D --> REPO
+    SVC_3D --> REPO
+
+    REPO --> DB
+    SVC_D --> FS
+    SVC_3D --> M3D

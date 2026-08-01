@@ -1,0 +1,16 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+data/app.db
+data/documentos/*
+data/modelos_3d/*
+!data/documentos/.gitkeep
+!data/modelos_3d/.gitkeep

@@ -1,0 +1,97 @@
+erDiagram
+    APARTAMENTO ||--o{ EQUIPO : contiene
+    APARTAMENTO ||--o{ CONTRATO : tiene
+    APARTAMENTO ||--o{ MANTENIMIENTO : requiere
+    APARTAMENTO ||--o{ PAGO_SERVICIO : genera
+    APARTAMENTO ||--|| MODELO_3D : posee
+    MODELO_3D ||--o{ MARCADOR : contiene
+    EQUIPO ||--o{ MANTENIMIENTO : origina
+    PROVEEDOR ||--o{ MANTENIMIENTO : realiza
+    PROVEEDOR ||--o{ PAGO_SERVICIO : factura
+    CONTRATO ||--o{ DOCUMENTO : adjunta
+    MANTENIMIENTO ||--o{ DOCUMENTO : adjunta
+    PAGO_SERVICIO ||--o{ DOCUMENTO : adjunta
+    EQUIPO ||--o{ DOCUMENTO : adjunta
+
+    APARTAMENTO {
+        int id PK
+        string direccion
+        float area_m2
+        int habitaciones
+        int banos
+    }
+    CONTRATO {
+        int id PK
+        int apartamento_id FK
+        date fecha_inicio
+        date fecha_fin
+        float monto_mensual
+        string arrendador
+        string arrendatario
+        string estado
+    }
+    EQUIPO {
+        int id PK
+        int apartamento_id FK
+        string nombre
+        string tipo
+        string ubicacion
+        date fecha_instalacion
+        string estado
+    }
+    MANTENIMIENTO {
+        int id PK
+        int apartamento_id FK
+        int equipo_id FK
+        int proveedor_id FK
+        string titulo
+        string descripcion
+        string estado
+        date fecha_solicitud
+        date fecha_completado
+        float costo
+    }
+    PAGO_SERVICIO {
+        int id PK
+        int apartamento_id FK
+        int proveedor_id FK
+        string tipo_servicio
+        string periodo
+        float monto
+        date fecha_vencimiento
+        date fecha_pago
+        string estado
+    }
+    DOCUMENTO {
+        int id PK
+        string tipo
+        string nombre_archivo
+        string ruta_archivo
+        date fecha_subida
+        string entidad_tipo
+        int entidad_id
+    }
+    MODELO_3D {
+        int id PK
+        int apartamento_id FK
+        string archivo_modelo
+        string formato
+        date fecha_actualizacion
+    }
+    MARCADOR {
+        int id PK
+        int modelo_3d_id FK
+        string tipo_referencia
+        int referencia_id
+        float pos_x
+        float pos_y
+        float pos_z
+        string etiqueta
+    }
+    PROVEEDOR {
+        int id PK
+        string nombre
+        string tipo_servicio
+        string telefono
+        string email
+    }
