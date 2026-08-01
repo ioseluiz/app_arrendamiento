@@ -6,10 +6,11 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
 
-from PySide6.QtCore import QObject, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -23,6 +24,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -32,6 +36,19 @@ from app.paths import DATA_DIR, VIEWER3D_DIR
 from app.services import EquipoService, MantenimientoService, Modelo3DService
 
 VIEWER3D_URL_PATH = "index.html"
+MARCADORES_COLUMNS = ["Etiqueta", "Vinculado a"]
+
+
+def _etiqueta_referencia(tipo: EntidadTipo | None, referencia_id: int | None) -> str:
+    if tipo is None or referencia_id is None:
+        return "—"
+    if tipo == EntidadTipo.EQUIPO:
+        equipo = EquipoService.obtener(referencia_id)
+        return f"Equipo: {equipo.nombre}" if equipo else f"Equipo #{referencia_id} (no existe)"
+    if tipo == EntidadTipo.MANTENIMIENTO:
+        mant = MantenimientoService.obtener(referencia_id)
+        return f"Mantenimiento: {mant.titulo}" if mant else f"Mantenimiento #{referencia_id} (no existe)"
+    return f"{tipo.value} #{referencia_id}"
 
 
 class _ViewerRequestHandler(SimpleHTTPRequestHandler):
@@ -208,10 +225,33 @@ class Viewer3DView(QWidget):
             QLabel("Teclado: flechas rotan · WASD desplaza · +/- zoom · R restablece")
         )
 
+        self.tabla_marcadores = QTableWidget(0, len(MARCADORES_COLUMNS))
+        self.tabla_marcadores.setHorizontalHeaderLabels(MARCADORES_COLUMNS)
+        self.tabla_marcadores.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_marcadores.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabla_marcadores.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_marcadores.horizontalHeader().setStretchLastSection(True)
+        self.tabla_marcadores.itemDoubleClicked.connect(self._al_hacer_doble_click_marcador)
+
+        btn_eliminar_marcador = QPushButton("Eliminar marcador seleccionado")
+        btn_eliminar_marcador.clicked.connect(self._eliminar_marcador_seleccionado)
+
+        panel_marcadores = QWidget()
+        panel_marcadores_layout = QVBoxLayout(panel_marcadores)
+        panel_marcadores_layout.addWidget(QLabel("<b>Marcadores en el modelo</b>"))
+        panel_marcadores_layout.addWidget(self.tabla_marcadores)
+        panel_marcadores_layout.addWidget(btn_eliminar_marcador)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self.web_view)
+        splitter.addWidget(panel_marcadores)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 1)
+
         layout = QVBoxLayout(self)
         layout.addLayout(botones)
         layout.addLayout(navegacion)
-        layout.addWidget(self.web_view, 1)
+        layout.addWidget(splitter, 1)
 
         self.web_view.loadFinished.connect(self._al_cargar_pagina)
         self.web_view.setUrl(self._url(VIEWER3D_URL_PATH))
@@ -257,12 +297,60 @@ class Viewer3DView(QWidget):
         self.bridge.limpiar_marcadores.emit()
         modelo = Modelo3DService.obtener_por_apartamento(self.apartamento_id)
         if modelo is None:
+            self.tabla_marcadores.setRowCount(0)
             return
         self.bridge.cargar_modelo.emit(self._url(f"data/{modelo.archivo_modelo}").toString())
         for marcador in Modelo3DService.listar_marcadores(modelo.id):
             self.bridge.agregar_marcador.emit(
                 marcador.id, marcador.pos_x, marcador.pos_y, marcador.pos_z, marcador.etiqueta
             )
+        self._refrescar_lista_marcadores()
+
+    def _refrescar_lista_marcadores(self) -> None:
+        self.tabla_marcadores.setRowCount(0)
+        modelo = Modelo3DService.obtener_por_apartamento(self.apartamento_id)
+        if modelo is None:
+            return
+        for marcador in Modelo3DService.listar_marcadores(modelo.id):
+            row = self.tabla_marcadores.rowCount()
+            self.tabla_marcadores.insertRow(row)
+            valores = [marcador.etiqueta, _etiqueta_referencia(marcador.tipo_referencia, marcador.referencia_id)]
+            for col, valor in enumerate(valores):
+                item = QTableWidgetItem(valor)
+                if col == 0:
+                    item.setData(Qt.UserRole, marcador.id)
+                self.tabla_marcadores.setItem(row, col, item)
+
+    def _marcador_seleccionado_en_tabla(self) -> int | None:
+        if not self.tabla_marcadores.selectedItems():
+            return None
+        row = self.tabla_marcadores.currentRow()
+        if row < 0:
+            return None
+        item = self.tabla_marcadores.item(row, 0)
+        return item.data(Qt.UserRole) if item else None
+
+    def _al_hacer_doble_click_marcador(self, item: QTableWidgetItem) -> None:
+        marcador_id = self._marcador_seleccionado_en_tabla()
+        if marcador_id is not None:
+            self._mostrar_detalle_marcador(marcador_id)
+
+    def _eliminar_marcador_seleccionado(self) -> None:
+        marcador_id = self._marcador_seleccionado_en_tabla()
+        if marcador_id is None:
+            QMessageBox.information(self, "Eliminar marcador", "Selecciona un marcador de la lista.")
+            return
+        respuesta = QMessageBox.question(
+            self,
+            "Eliminar marcador",
+            "¿Eliminar este marcador?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if respuesta != QMessageBox.Yes:
+            return
+        Modelo3DService.eliminar_marcador(marcador_id)
+        self.bridge.eliminar_marcador.emit(marcador_id)
+        self._refrescar_lista_marcadores()
 
     def _importar_modelo(self) -> None:
         ruta, _ = QFileDialog.getOpenFileName(
@@ -288,6 +376,7 @@ class Viewer3DView(QWidget):
             modelo_3d_id=modelo.id, pos_x=x, pos_y=y, pos_z=z, **dialog.datos()
         )
         self.bridge.agregar_marcador.emit(marcador.id, x, y, z, marcador.etiqueta)
+        self._refrescar_lista_marcadores()
 
     def _mostrar_detalle_marcador(self, marcador_id: int) -> None:
         marcador = Modelo3DService.obtener_marcador(marcador_id)
@@ -305,3 +394,4 @@ class Viewer3DView(QWidget):
         if respuesta == QMessageBox.Yes:
             Modelo3DService.eliminar_marcador(marcador_id)
             self.bridge.eliminar_marcador.emit(marcador_id)
+            self._refrescar_lista_marcadores()
