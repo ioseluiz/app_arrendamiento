@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from app.date_utils import sumar_meses
-from app.models import EstadoMantenimiento, EstadoPago, Mantenimiento, PagoServicio
+from app.models import EstadoMantenimiento, EstadoPago, Mantenimiento, PagoServicio, TipoServicio
 from app.services.mantenimiento_service import MantenimientoService
 from app.services.pago_servicio_service import PagoService
 from app.services.recordatorio_service import RecordatorioService
@@ -12,8 +12,12 @@ from app.services.recordatorio_service import RecordatorioService
 MESES_ABREV = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 
 
+def _categoria_de_tipo_servicio(tipo: TipoServicio) -> str:
+    return tipo.value.replace("_", "/").title()
+
+
 def _categoria_pago(pago: PagoServicio) -> str:
-    return pago.tipo_servicio.value.replace("_", "/").title()
+    return _categoria_de_tipo_servicio(pago.tipo_servicio)
 
 
 @dataclass(frozen=True)
@@ -92,7 +96,9 @@ class ReporteService:
         return proximos
 
     @staticmethod
-    def gastos_por_mes(apartamento_id: int, meses: int = 6) -> list[tuple[str, float]]:
+    def gastos_por_mes(
+        apartamento_id: int, meses: int = 6, categoria: str | None = None
+    ) -> list[tuple[str, float]]:
         hoy = date.today()
         primer_mes = sumar_meses(date(hoy.year, hoy.month, 1), -(meses - 1))
         claves: list[tuple[int, int]] = []
@@ -103,6 +109,8 @@ class ReporteService:
 
         totales = {clave: 0.0 for clave in claves}
         for gasto in ReporteService.historial_gastos(apartamento_id):
+            if categoria is not None and gasto.categoria != categoria:
+                continue
             clave = (gasto.fecha.year, gasto.fecha.month)
             if clave in totales:
                 totales[clave] += gasto.monto
@@ -115,6 +123,13 @@ class ReporteService:
         for gasto in ReporteService.historial_gastos(apartamento_id):
             totales[gasto.categoria] = totales.get(gasto.categoria, 0.0) + gasto.monto
         return sorted(totales.items(), key=lambda item: item[1], reverse=True)
+
+    @staticmethod
+    def categorias_disponibles() -> list[str]:
+        """Todas las categorías de gasto posibles (coincide con las que
+        genera historial_gastos), para poblar un filtro sin depender de que
+        ya haya datos cargados en cada una."""
+        return ["Mantenimiento"] + [_categoria_de_tipo_servicio(t) for t in TipoServicio]
 
     @staticmethod
     def resumen_dashboard(apartamento_id: int) -> ResumenDashboard:

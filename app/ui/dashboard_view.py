@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtCharts import QBarCategoryAxis, QBarSeries, QBarSet, QChart, QChartView, QPieSeries, QValueAxis
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from app.services import ReporteService
 
@@ -55,16 +55,31 @@ class DashboardView(QWidget):
         ):
             tarjetas.addWidget(card)
 
+        self.filtro_categoria = QComboBox()
+        self.filtro_categoria.addItem("Todas las categorías", None)
+        for categoria in ReporteService.categorias_disponibles():
+            self.filtro_categoria.addItem(categoria, categoria)
+        self.filtro_categoria.currentIndexChanged.connect(self._actualizar_grafico_mensual)
+
+        cabecera_mensual = QHBoxLayout()
+        cabecera_mensual.addWidget(QLabel("Gastos mensuales:"))
+        cabecera_mensual.addWidget(self.filtro_categoria)
+        cabecera_mensual.addStretch()
+
         self.chart_view_mensual = QChartView()
         self.chart_view_mensual.setRenderHint(QPainter.Antialiasing)
         self.chart_view_mensual.setMinimumHeight(280)
+
+        columna_mensual = QVBoxLayout()
+        columna_mensual.addLayout(cabecera_mensual)
+        columna_mensual.addWidget(self.chart_view_mensual)
 
         self.chart_view_categorias = QChartView()
         self.chart_view_categorias.setRenderHint(QPainter.Antialiasing)
         self.chart_view_categorias.setMinimumHeight(280)
 
         graficos = QHBoxLayout()
-        graficos.addWidget(self.chart_view_mensual, 2)
+        graficos.addLayout(columna_mensual, 2)
         graficos.addWidget(self.chart_view_categorias, 1)
 
         btn_refrescar = QPushButton("Refrescar")
@@ -94,9 +109,12 @@ class DashboardView(QWidget):
         self._actualizar_grafico_categorias()
 
     def _actualizar_grafico_mensual(self) -> None:
-        serie_datos = ReporteService.gastos_por_mes(self.apartamento_id, meses=MESES_HISTORIAL)
+        categoria = self.filtro_categoria.currentData()
+        serie_datos = ReporteService.gastos_por_mes(
+            self.apartamento_id, meses=MESES_HISTORIAL, categoria=categoria
+        )
 
-        barset = QBarSet("Gastos")
+        barset = QBarSet(categoria or "Gastos")
         for _, monto in serie_datos:
             barset.append(monto)
 
@@ -105,7 +123,8 @@ class DashboardView(QWidget):
 
         chart = QChart()
         chart.addSeries(series)
-        chart.setTitle(f"Gastos mensuales (últimos {MESES_HISTORIAL} meses)")
+        subtitulo = f" — {categoria}" if categoria else ""
+        chart.setTitle(f"Gastos mensuales (últimos {MESES_HISTORIAL} meses){subtitulo}")
         chart.legend().setVisible(False)
 
         eje_x = QBarCategoryAxis()
