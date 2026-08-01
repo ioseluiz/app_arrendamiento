@@ -31,3 +31,4 @@ class Equipo(Base):
     )
 
     apartamento: Mapped["Apartamento"] = relationship(back_populates="equipos")
+    mantenimientos: Mapped[list["Mantenimiento"]] = relationship(back_populates="equipo")

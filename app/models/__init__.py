@@ -3,6 +3,9 @@ from app.models.base import Base, SessionLocal, engine
 from app.models.contrato import Contrato, EstadoContrato
 from app.models.documento import Documento, EntidadTipo, TipoDocumento
 from app.models.equipo import Equipo, EstadoEquipo
+from app.models.mantenimiento import EstadoMantenimiento, Mantenimiento
+from app.models.pago_servicio import EstadoPago, PagoServicio, TipoServicio
+from app.models.proveedor import Proveedor
 
 __all__ = [
     "Base",
@@ -17,6 +20,12 @@ __all__ = [
     "TipoDocumento",
     "Equipo",
     "EstadoEquipo",
+    "Mantenimiento",
+    "EstadoMantenimiento",
+    "PagoServicio",
+    "TipoServicio",
+    "EstadoPago",
+    "Proveedor",
 ]
 
 

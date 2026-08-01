@@ -21,3 +21,9 @@ class Apartamento(Base):
     equipos: Mapped[list["Equipo"]] = relationship(
         back_populates="apartamento", cascade="all, delete-orphan"
     )
+    mantenimientos: Mapped[list["Mantenimiento"]] = relationship(
+        back_populates="apartamento", cascade="all, delete-orphan"
+    )
+    pagos_servicio: Mapped[list["PagoServicio"]] = relationship(
+        back_populates="apartamento", cascade="all, delete-orphan"
+    )
