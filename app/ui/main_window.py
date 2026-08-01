@@ -32,7 +32,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(MantenimientoView(apartamento_id), "Mantenimiento")
         self.tabs.addTab(PagoView(apartamento_id), "Pagos")
         self.tabs.addTab(ReporteView(apartamento_id), "Reportes")
-        self.tabs.addTab(DocumentoView(), "Documentos")
+        self.tabs.addTab(DocumentoView(apartamento_id), "Documentos")
         self.tabs.addTab(Viewer3DView(apartamento_id), "Modelo 3D")
         self.tabs.currentChanged.connect(self._al_cambiar_pestana)
         self.setCentralWidget(self.tabs)

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -16,7 +15,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -24,18 +22,42 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import EntidadTipo, TipoDocumento
-from app.paths import DATA_DIR
-from app.services import DocumentoService
+from app.services import (
+    ContratoService,
+    DocumentoService,
+    EquipoService,
+    MantenimientoService,
+    PagoService,
+)
 
-COLUMNS = ["ID", "Tipo", "Archivo", "Asociado a", "ID entidad", "Fecha subida"]
+COLUMNS = ["ID", "Tipo", "Archivo", "Asociado a", "Elemento", "Fecha subida"]
 
-DOCUMENTOS_DIR = DATA_DIR / "documentos"
+
+def _opciones_entidad(apartamento_id: int, tipo: EntidadTipo) -> list[tuple[str, int]]:
+    """Devuelve pares (etiqueta legible, id) de las entidades existentes de
+    ese tipo, para poblar un combo en vez de pedir un ID a mano."""
+    if tipo == EntidadTipo.CONTRATO:
+        return [
+            (f"Contrato #{c.id} ({c.arrendador} / {c.arrendatario})", c.id)
+            for c in ContratoService.listar_por_apartamento(apartamento_id)
+        ]
+    if tipo == EntidadTipo.EQUIPO:
+        return [(e.nombre, e.id) for e in EquipoService.listar_por_apartamento(apartamento_id)]
+    if tipo == EntidadTipo.MANTENIMIENTO:
+        return [(m.titulo, m.id) for m in MantenimientoService.listar_por_apartamento(apartamento_id)]
+    if tipo == EntidadTipo.PAGO_SERVICIO:
+        return [
+            (f"{p.tipo_servicio.value} ({p.periodo})", p.id)
+            for p in PagoService.listar_por_apartamento(apartamento_id)
+        ]
+    return []
 
 
 class DocumentoFormDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, apartamento_id: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Nuevo documento")
+        self.apartamento_id = apartamento_id
+        self.setWindowTitle("Adjuntar documento")
         self._ruta_origen: Path | None = None
 
         self.tipo = QComboBox()
@@ -55,8 +77,7 @@ class DocumentoFormDialog(QDialog):
         for entidad in EntidadTipo:
             self.entidad_tipo.addItem(entidad.value, entidad)
 
-        self.entidad_id = QSpinBox()
-        self.entidad_id.setRange(1, 999_999)
+        self.entidad = QComboBox()
 
         self.fecha_subida = QDateEdit(calendarPopup=True)
         self.fecha_subida.setDate(QDate.currentDate())
@@ -65,17 +86,26 @@ class DocumentoFormDialog(QDialog):
         form.addRow("Tipo de documento", self.tipo)
         form.addRow("Archivo", fila_archivo)
         form.addRow("Asociado a", self.entidad_tipo)
-        form.addRow("ID de la entidad", self.entidad_id)
+        form.addRow("Elemento", self.entidad)
         form.addRow("Fecha de subida", self.fecha_subida)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.buttons.accepted.connect(self._validar_y_aceptar)
         self.buttons.rejected.connect(self.reject)
-        self.buttons.button(QDialogButtonBox.Ok).setEnabled(False)
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.buttons)
+
+        self.entidad_tipo.currentIndexChanged.connect(self._actualizar_entidades)
+        self._actualizar_entidades()
+
+    def _actualizar_entidades(self) -> None:
+        self.entidad.clear()
+        tipo = self.entidad_tipo.currentData()
+        for etiqueta, entidad_id in _opciones_entidad(self.apartamento_id, tipo):
+            self.entidad.addItem(etiqueta, entidad_id)
+        self.entidad.setEnabled(self.entidad.count() > 0)
 
     def _seleccionar_archivo(self) -> None:
         ruta, _ = QFileDialog.getOpenFileName(
@@ -85,40 +115,125 @@ class DocumentoFormDialog(QDialog):
             return
         self._ruta_origen = Path(ruta)
         self.archivo.setText(self._ruta_origen.name)
-        self.buttons.button(QDialogButtonBox.Ok).setEnabled(True)
 
     def _validar_y_aceptar(self) -> None:
         if self._ruta_origen is None:
             QMessageBox.warning(self, "Datos incompletos", "Selecciona un archivo.")
             return
+        if self.entidad.count() == 0:
+            QMessageBox.warning(
+                self,
+                "Sin elementos",
+                "No hay ningún elemento de ese tipo todavía para vincular el documento. Créalo primero.",
+            )
+            return
         self.accept()
 
     def datos(self) -> dict:
-        destino = self._copiar_a_documentos(self._ruta_origen)
         return {
-            "tipo": self.tipo.currentData(),
-            "nombre_archivo": self._ruta_origen.name,
-            "ruta_archivo": str(destino.relative_to(DATA_DIR)),
             "entidad_tipo": self.entidad_tipo.currentData(),
-            "entidad_id": self.entidad_id.value(),
+            "entidad_id": self.entidad.currentData(),
+            "ruta_origen": self._ruta_origen,
+            "tipo": self.tipo.currentData(),
             "fecha_subida": self.fecha_subida.date().toPython(),
         }
 
-    @staticmethod
-    def _copiar_a_documentos(origen: Path) -> Path:
-        DOCUMENTOS_DIR.mkdir(parents=True, exist_ok=True)
-        destino = DOCUMENTOS_DIR / origen.name
-        contador = 1
-        while destino.exists():
-            destino = DOCUMENTOS_DIR / f"{origen.stem}_{contador}{origen.suffix}"
-            contador += 1
-        shutil.copy2(origen, destino)
-        return destino
+
+class DocumentosDeEntidadDialog(QDialog):
+    """Diálogo compacto para ver/adjuntar/eliminar documentos de UNA entidad
+    puntual (ej. un mantenimiento o un pago), sin pasar por la pestaña
+    Documentos ni tener que elegir el elemento otra vez."""
+
+    COLUMNS = ["Tipo", "Archivo", "Fecha subida"]
+
+    def __init__(
+        self,
+        entidad_tipo: EntidadTipo,
+        entidad_id: int,
+        etiqueta: str,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.entidad_tipo = entidad_tipo
+        self.entidad_id = entidad_id
+        self.setWindowTitle(f"Documentos — {etiqueta}")
+        self.resize(480, 320)
+
+        self.tabla = QTableWidget(0, len(self.COLUMNS))
+        self.tabla.setHorizontalHeaderLabels(self.COLUMNS)
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla.horizontalHeader().setStretchLastSection(True)
+
+        btn_adjuntar = QPushButton("Adjuntar...")
+        btn_adjuntar.clicked.connect(self._adjuntar)
+        btn_eliminar = QPushButton("Eliminar")
+        btn_eliminar.clicked.connect(self._eliminar)
+        btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.clicked.connect(self.accept)
+
+        botones = QHBoxLayout()
+        botones.addWidget(btn_adjuntar)
+        botones.addWidget(btn_eliminar)
+        botones.addStretch()
+        botones.addWidget(btn_cerrar)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.tabla)
+        layout.addLayout(botones)
+
+        self.refrescar()
+
+    def refrescar(self) -> None:
+        documentos = DocumentoService.listar_por_entidad(self.entidad_tipo, self.entidad_id)
+        self.tabla.setRowCount(0)
+        for documento in documentos:
+            row = self.tabla.rowCount()
+            self.tabla.insertRow(row)
+            valores = [documento.tipo.value, documento.nombre_archivo, documento.fecha_subida.isoformat()]
+            for col, valor in enumerate(valores):
+                item = QTableWidgetItem(valor)
+                if col == 0:
+                    item.setData(Qt.UserRole, documento.id)
+                self.tabla.setItem(row, col, item)
+
+    def _selected_id(self) -> int | None:
+        row = self.tabla.currentRow()
+        if row < 0:
+            return None
+        item = self.tabla.item(row, 0)
+        return item.data(Qt.UserRole) if item else None
+
+    def _adjuntar(self) -> None:
+        ruta, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar documento", str(Path.home()), "Documentos (*.pdf *.jpg *.jpeg *.png)"
+        )
+        if not ruta:
+            return
+        DocumentoService.adjuntar(self.entidad_tipo, self.entidad_id, Path(ruta))
+        self.refrescar()
+
+    def _eliminar(self) -> None:
+        documento_id = self._selected_id()
+        if documento_id is None:
+            QMessageBox.information(self, "Eliminar documento", "Selecciona un documento de la tabla.")
+            return
+        respuesta = QMessageBox.question(
+            self,
+            "Eliminar documento",
+            "¿Eliminar el registro de este documento?\n(el archivo en disco no se borra)",
+        )
+        if respuesta != QMessageBox.Yes:
+            return
+        DocumentoService.eliminar(documento_id)
+        self.refrescar()
 
 
 class DocumentoView(QWidget):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, apartamento_id: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.apartamento_id = apartamento_id
 
         self.tabla = QTableWidget(0, len(COLUMNS))
         self.tabla.setHorizontalHeaderLabels(COLUMNS)
@@ -157,11 +272,17 @@ class DocumentoView(QWidget):
                 documento.tipo.value,
                 documento.nombre_archivo,
                 documento.entidad_tipo.value,
-                str(documento.entidad_id),
+                self._etiqueta_entidad(documento.entidad_tipo, documento.entidad_id),
                 documento.fecha_subida.isoformat(),
             ]
             for col, valor in enumerate(valores):
                 self.tabla.setItem(row, col, QTableWidgetItem(valor))
+
+    def _etiqueta_entidad(self, tipo: EntidadTipo, entidad_id: int) -> str:
+        for etiqueta, opcion_id in _opciones_entidad(self.apartamento_id, tipo):
+            if opcion_id == entidad_id:
+                return etiqueta
+        return f"#{entidad_id} (ya no existe)"
 
     def _selected_id(self) -> int | None:
         row = self.tabla.currentRow()
@@ -171,11 +292,11 @@ class DocumentoView(QWidget):
         return int(item.text()) if item else None
 
     def _nuevo(self) -> None:
-        dialog = DocumentoFormDialog(self)
+        dialog = DocumentoFormDialog(self.apartamento_id, self)
         if dialog.exec() != QDialog.Accepted:
             return
         try:
-            DocumentoService.crear(**dialog.datos())
+            DocumentoService.adjuntar(**dialog.datos())
         except ValueError as exc:
             QMessageBox.warning(self, "Error", str(exc))
             return

@@ -19,8 +19,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.models import EstadoPago, PagoServicio, TipoServicio
+from app.models import EntidadTipo, EstadoPago, PagoServicio, TipoServicio
 from app.services import PagoService, ProveedorService
+from app.ui.documento_view import DocumentosDeEntidadDialog
 
 COLUMNS = ["ID", "Servicio", "Periodo", "Monto", "Proveedor", "Vencimiento", "Pago", "Estado"]
 
@@ -141,11 +142,13 @@ class PagoView(QWidget):
         btn_nuevo = QPushButton("Nuevo")
         btn_editar = QPushButton("Editar")
         btn_pagado = QPushButton("Marcar pagado")
+        btn_documentos = QPushButton("Documentos...")
         btn_eliminar = QPushButton("Eliminar")
         btn_refrescar = QPushButton("Refrescar")
         btn_nuevo.clicked.connect(self._nuevo)
         btn_editar.clicked.connect(self._editar)
         btn_pagado.clicked.connect(self._marcar_pagado)
+        btn_documentos.clicked.connect(self._documentos)
         btn_eliminar.clicked.connect(self._eliminar)
         btn_refrescar.clicked.connect(self.refrescar)
 
@@ -153,6 +156,7 @@ class PagoView(QWidget):
         botones.addWidget(btn_nuevo)
         botones.addWidget(btn_editar)
         botones.addWidget(btn_pagado)
+        botones.addWidget(btn_documentos)
         botones.addWidget(btn_eliminar)
         botones.addStretch()
         botones.addWidget(btn_refrescar)
@@ -243,3 +247,16 @@ class PagoView(QWidget):
             return
         PagoService.eliminar(pago_id)
         self.refrescar()
+
+    def _documentos(self) -> None:
+        pago_id = self._selected_id()
+        if pago_id is None:
+            QMessageBox.information(self, "Documentos", "Selecciona un pago de la tabla.")
+            return
+        pago = PagoService.obtener(pago_id)
+        if pago is None:
+            QMessageBox.warning(self, "Error", "El pago ya no existe.")
+            self.refrescar()
+            return
+        etiqueta = f"{pago.tipo_servicio.value} ({pago.periodo})"
+        DocumentosDeEntidadDialog(EntidadTipo.PAGO_SERVICIO, pago_id, etiqueta, self).exec()

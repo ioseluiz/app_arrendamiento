@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.models import EstadoMantenimiento, Mantenimiento
+from app.models import EntidadTipo, EstadoMantenimiento, Mantenimiento
 from app.services import (
     EquipoService,
     MantenimientoService,
@@ -30,6 +30,7 @@ from app.services import (
     RecordatorioService,
     ReporteService,
 )
+from app.ui.documento_view import DocumentosDeEntidadDialog
 
 TICKETS_COLUMNS = ["ID", "Título", "Equipo", "Proveedor", "Estado", "Solicitud", "Completado", "Costo"]
 RECORDATORIOS_COLUMNS = ["Equipo", "Frecuencia (meses)", "Último mantenimiento", "Próxima fecha", "Situación"]
@@ -173,11 +174,13 @@ class TicketsMantenimientoView(QWidget):
         btn_nuevo = QPushButton("Nuevo")
         btn_editar = QPushButton("Editar")
         btn_completado = QPushButton("Marcar completado")
+        btn_documentos = QPushButton("Documentos...")
         btn_eliminar = QPushButton("Eliminar")
         btn_refrescar = QPushButton("Refrescar")
         btn_nuevo.clicked.connect(self._nuevo)
         btn_editar.clicked.connect(self._editar)
         btn_completado.clicked.connect(self._marcar_completado)
+        btn_documentos.clicked.connect(self._documentos)
         btn_eliminar.clicked.connect(self._eliminar)
         btn_refrescar.clicked.connect(self.refrescar)
 
@@ -185,6 +188,7 @@ class TicketsMantenimientoView(QWidget):
         botones.addWidget(btn_nuevo)
         botones.addWidget(btn_editar)
         botones.addWidget(btn_completado)
+        botones.addWidget(btn_documentos)
         botones.addWidget(btn_eliminar)
         botones.addStretch()
         botones.addWidget(btn_refrescar)
@@ -275,6 +279,18 @@ class TicketsMantenimientoView(QWidget):
             return
         MantenimientoService.eliminar(mant_id)
         self.refrescar()
+
+    def _documentos(self) -> None:
+        mant_id = self._selected_id()
+        if mant_id is None:
+            QMessageBox.information(self, "Documentos", "Selecciona un mantenimiento de la tabla.")
+            return
+        mant = MantenimientoService.obtener(mant_id)
+        if mant is None:
+            QMessageBox.warning(self, "Error", "El mantenimiento ya no existe.")
+            self.refrescar()
+            return
+        DocumentosDeEntidadDialog(EntidadTipo.MANTENIMIENTO, mant_id, mant.titulo, self).exec()
 
 
 class RecordatoriosMantenimientoView(QWidget):
