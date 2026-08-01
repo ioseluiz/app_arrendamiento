@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
@@ -15,7 +16,10 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QGridLayout,
+    QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -57,13 +61,17 @@ def _iniciar_servidor_local() -> ThreadingHTTPServer:
     return server
 
 
-class MarcadorBridge(QObject):
+class Viewer3DBridge(QObject):
     # Python -> JS
     cargar_modelo = Signal(str)
     agregar_marcador = Signal(int, float, float, float, str)
     eliminar_marcador = Signal(int)
     limpiar_marcadores = Signal()
     establecer_modo_agregar = Signal(bool)
+    orbit_step = Signal(float, float)
+    pan_step = Signal(float, float)
+    zoom_step = Signal(float)
+    resetear_vista = Signal()
 
     # JS -> Python
     nuevo_marcador_solicitado = Signal(float, float, float)
@@ -139,6 +147,12 @@ class MarcadorFormDialog(QDialog):
         }
 
 
+ROTATE_STEP = 0.35  # radianes por clic de botón
+PAN_STEP = 1.0
+ZOOM_IN_FACTOR = 0.8
+ZOOM_OUT_FACTOR = 1 / 0.8
+
+
 class Viewer3DView(QWidget):
     def __init__(self, apartamento_id: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -148,7 +162,7 @@ class Viewer3DView(QWidget):
 
         self.web_view = QWebEngineView()
         self.channel = QWebChannel()
-        self.bridge = MarcadorBridge()
+        self.bridge = Viewer3DBridge()
         self.channel.registerObject("bridge", self.bridge)
         self.web_view.page().setWebChannel(self.channel)
 
@@ -170,12 +184,67 @@ class Viewer3DView(QWidget):
         botones.addStretch()
         botones.addWidget(btn_recargar)
 
+        grupo_rotar = self._crear_pad_direccional("Rotar", self._rotar)
+        grupo_desplazar = self._crear_pad_direccional("Desplazar", self._desplazar)
+
+        btn_zoom_in = QPushButton("Zoom +")
+        btn_zoom_in.clicked.connect(lambda: self.bridge.zoom_step.emit(ZOOM_IN_FACTOR))
+        btn_zoom_out = QPushButton("Zoom −")
+        btn_zoom_out.clicked.connect(lambda: self.bridge.zoom_step.emit(ZOOM_OUT_FACTOR))
+        columna_zoom = QVBoxLayout()
+        columna_zoom.addWidget(btn_zoom_in)
+        columna_zoom.addWidget(btn_zoom_out)
+
+        btn_reset = QPushButton("Restablecer vista")
+        btn_reset.clicked.connect(self.bridge.resetear_vista.emit)
+
+        navegacion = QHBoxLayout()
+        navegacion.addWidget(grupo_rotar)
+        navegacion.addWidget(grupo_desplazar)
+        navegacion.addLayout(columna_zoom)
+        navegacion.addWidget(btn_reset)
+        navegacion.addStretch()
+        navegacion.addWidget(
+            QLabel("Teclado: flechas rotan · WASD desplaza · +/- zoom · R restablece")
+        )
+
         layout = QVBoxLayout(self)
         layout.addLayout(botones)
+        layout.addLayout(navegacion)
         layout.addWidget(self.web_view, 1)
 
         self.web_view.loadFinished.connect(self._al_cargar_pagina)
         self.web_view.setUrl(self._url(VIEWER3D_URL_PATH))
+
+    @staticmethod
+    def _crear_pad_direccional(titulo: str, on_click: Callable[[int, int], None]) -> QGroupBox:
+        grupo = QGroupBox(titulo)
+        grid = QGridLayout(grupo)
+        grid.setSpacing(2)
+
+        btn_arriba = QPushButton("▲")
+        btn_abajo = QPushButton("▼")
+        btn_izquierda = QPushButton("◀")
+        btn_derecha = QPushButton("▶")
+        for boton in (btn_arriba, btn_abajo, btn_izquierda, btn_derecha):
+            boton.setFixedWidth(32)
+
+        btn_arriba.clicked.connect(lambda: on_click(0, -1))
+        btn_abajo.clicked.connect(lambda: on_click(0, 1))
+        btn_izquierda.clicked.connect(lambda: on_click(-1, 0))
+        btn_derecha.clicked.connect(lambda: on_click(1, 0))
+
+        grid.addWidget(btn_arriba, 0, 1)
+        grid.addWidget(btn_izquierda, 1, 0)
+        grid.addWidget(btn_derecha, 1, 2)
+        grid.addWidget(btn_abajo, 2, 1)
+        return grupo
+
+    def _rotar(self, dx: int, dy: int) -> None:
+        self.bridge.orbit_step.emit(dx * ROTATE_STEP, dy * ROTATE_STEP)
+
+    def _desplazar(self, dx: int, dy: int) -> None:
+        self.bridge.pan_step.emit(dx * PAN_STEP, dy * PAN_STEP)
 
     def _url(self, ruta_relativa: str) -> QUrl:
         return QUrl(f"http://127.0.0.1:{self._port}/{ruta_relativa}")
