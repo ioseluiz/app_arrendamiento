@@ -1,6 +1,4 @@
 PySide6>=6.6
 SQLAlchemy>=2.0
 Pillow>=10.0
-pypdf>=4.0
-pdf2image>=1.17
 alembic>=1.13

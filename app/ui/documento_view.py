@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -29,6 +30,7 @@ from app.services import (
     MantenimientoService,
     PagoService,
 )
+from app.ui.documento_preview import DocumentoPreviewPanel
 
 COLUMNS = ["ID", "Tipo", "Archivo", "Asociado a", "Elemento", "Fecha subida"]
 
@@ -140,9 +142,9 @@ class DocumentoFormDialog(QDialog):
 
 
 class DocumentosDeEntidadDialog(QDialog):
-    """Diálogo compacto para ver/adjuntar/eliminar documentos de UNA entidad
-    puntual (ej. un mantenimiento o un pago), sin pasar por la pestaña
-    Documentos ni tener que elegir el elemento otra vez."""
+    """Diálogo para ver/adjuntar/eliminar documentos de UNA entidad puntual
+    (ej. un mantenimiento o un pago), con previsualización, sin pasar por la
+    pestaña Documentos ni tener que elegir el elemento otra vez."""
 
     COLUMNS = ["Tipo", "Archivo", "Fecha subida"]
 
@@ -157,7 +159,7 @@ class DocumentosDeEntidadDialog(QDialog):
         self.entidad_tipo = entidad_tipo
         self.entidad_id = entidad_id
         self.setWindowTitle(f"Documentos — {etiqueta}")
-        self.resize(480, 320)
+        self.resize(760, 420)
 
         self.tabla = QTableWidget(0, len(self.COLUMNS))
         self.tabla.setHorizontalHeaderLabels(self.COLUMNS)
@@ -165,6 +167,15 @@ class DocumentosDeEntidadDialog(QDialog):
         self.tabla.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla.horizontalHeader().setStretchLastSection(True)
+        self.tabla.itemSelectionChanged.connect(self._actualizar_previsualizacion)
+
+        self.preview = DocumentoPreviewPanel()
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self.tabla)
+        splitter.addWidget(self.preview)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 1)
 
         btn_adjuntar = QPushButton("Adjuntar...")
         btn_adjuntar.clicked.connect(self._adjuntar)
@@ -180,7 +191,7 @@ class DocumentosDeEntidadDialog(QDialog):
         botones.addWidget(btn_cerrar)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(self.tabla)
+        layout.addWidget(splitter, 1)
         layout.addLayout(botones)
 
         self.refrescar()
@@ -197,13 +208,24 @@ class DocumentosDeEntidadDialog(QDialog):
                 if col == 0:
                     item.setData(Qt.UserRole, documento.id)
                 self.tabla.setItem(row, col, item)
+        self.preview.limpiar()
 
     def _selected_id(self) -> int | None:
+        # selectedItems() (no solo currentRow()) porque clearSelection() no
+        # resetea la fila "actual": si el usuario deselecciona sin cambiar
+        # de fila, currentRow() seguiría apuntando a la última seleccionada.
+        if not self.tabla.selectedItems():
+            return None
         row = self.tabla.currentRow()
         if row < 0:
             return None
         item = self.tabla.item(row, 0)
         return item.data(Qt.UserRole) if item else None
+
+    def _actualizar_previsualizacion(self) -> None:
+        documento_id = self._selected_id()
+        documento = DocumentoService.obtener(documento_id) if documento_id is not None else None
+        self.preview.mostrar(documento)
 
     def _adjuntar(self) -> None:
         ruta, _ = QFileDialog.getOpenFileName(
@@ -241,6 +263,15 @@ class DocumentoView(QWidget):
         self.tabla.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla.horizontalHeader().setStretchLastSection(True)
+        self.tabla.itemSelectionChanged.connect(self._actualizar_previsualizacion)
+
+        self.preview = DocumentoPreviewPanel()
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self.tabla)
+        splitter.addWidget(self.preview)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 1)
 
         btn_nuevo = QPushButton("Adjuntar...")
         btn_eliminar = QPushButton("Eliminar")
@@ -257,7 +288,7 @@ class DocumentoView(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addLayout(botones)
-        layout.addWidget(self.tabla)
+        layout.addWidget(splitter, 1)
 
         self.refrescar()
 
@@ -277,6 +308,7 @@ class DocumentoView(QWidget):
             ]
             for col, valor in enumerate(valores):
                 self.tabla.setItem(row, col, QTableWidgetItem(valor))
+        self.preview.limpiar()
 
     def _etiqueta_entidad(self, tipo: EntidadTipo, entidad_id: int) -> str:
         for etiqueta, opcion_id in _opciones_entidad(self.apartamento_id, tipo):
@@ -285,11 +317,18 @@ class DocumentoView(QWidget):
         return f"#{entidad_id} (ya no existe)"
 
     def _selected_id(self) -> int | None:
+        if not self.tabla.selectedItems():
+            return None
         row = self.tabla.currentRow()
         if row < 0:
             return None
         item = self.tabla.item(row, 0)
         return int(item.text()) if item else None
+
+    def _actualizar_previsualizacion(self) -> None:
+        documento_id = self._selected_id()
+        documento = DocumentoService.obtener(documento_id) if documento_id is not None else None
+        self.preview.mostrar(documento)
 
     def _nuevo(self) -> None:
         dialog = DocumentoFormDialog(self.apartamento_id, self)

@@ -62,14 +62,11 @@ arrendamiento_app/
 PySide6>=6.6
 SQLAlchemy>=2.0
 Pillow>=10.0
-pypdf>=4.0
-pdf2image>=1.17
 alembic>=1.13
 ```
 
 > Notas:
-> - `pdf2image` requiere `poppler` instalado en el sistema (`brew install poppler`).
-> - `PySide6-WebEngine` no se instala aparte: `QtWebEngineWidgets`, `QtWebChannel` y `QtCharts` (visor 3D y dashboard) ya vienen incluidos en `PySide6`/`PySide6-Addons`.
+> - `PySide6-WebEngine` no se instala aparte: `QtWebEngineWidgets`, `QtWebChannel`, `QtCharts` (visor 3D y dashboard) y `QtPdf`/`QtPdfWidgets` (previsualización de documentos PDF) ya vienen incluidos en `PySide6`/`PySide6-Addons`.
 
 Para desarrollo (lint) instalar además:
 ```bash

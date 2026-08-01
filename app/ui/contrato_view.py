@@ -20,8 +20,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.models import Contrato, EstadoContrato
+from app.models import Contrato, EntidadTipo, EstadoContrato
 from app.services import ContratoService
+from app.ui.documento_view import DocumentosDeEntidadDialog
 
 COLUMNS = ["ID", "Inicio", "Fin", "Monto mensual", "Arrendador", "Arrendatario", "Estado"]
 
@@ -116,16 +117,19 @@ class ContratoView(QWidget):
 
         btn_nuevo = QPushButton("Nuevo")
         btn_editar = QPushButton("Editar")
+        btn_documentos = QPushButton("Documentos...")
         btn_eliminar = QPushButton("Eliminar")
         btn_refrescar = QPushButton("Refrescar")
         btn_nuevo.clicked.connect(self._nuevo)
         btn_editar.clicked.connect(self._editar)
+        btn_documentos.clicked.connect(self._documentos)
         btn_eliminar.clicked.connect(self._eliminar)
         btn_refrescar.clicked.connect(self.refrescar)
 
         botones = QHBoxLayout()
         botones.addWidget(btn_nuevo)
         botones.addWidget(btn_editar)
+        botones.addWidget(btn_documentos)
         botones.addWidget(btn_eliminar)
         botones.addStretch()
         botones.addWidget(btn_refrescar)
@@ -204,3 +208,16 @@ class ContratoView(QWidget):
             return
         ContratoService.eliminar(contrato_id)
         self.refrescar()
+
+    def _documentos(self) -> None:
+        contrato_id = self._selected_id()
+        if contrato_id is None:
+            QMessageBox.information(self, "Documentos", "Selecciona un contrato de la tabla.")
+            return
+        contrato = ContratoService.obtener(contrato_id)
+        if contrato is None:
+            QMessageBox.warning(self, "Error", "El contrato ya no existe.")
+            self.refrescar()
+            return
+        etiqueta = f"Contrato #{contrato.id} ({contrato.arrendador} / {contrato.arrendatario})"
+        DocumentosDeEntidadDialog(EntidadTipo.CONTRATO, contrato_id, etiqueta, self).exec()
