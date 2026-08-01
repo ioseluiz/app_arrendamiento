@@ -1,8 +1,14 @@
 name: Release
 
-# Crea un GitHub Release con notas autogeneradas cada vez que se empuja un
-# tag "vX.Y.Z". Por ahora no adjunta binarios: eso se conecta cuando esté
-# lista la Fase 5 (empaquetado con PyInstaller).
+# Al empujar un tag "vX.Y.Z": construye Arrendamiento.app en macOS con
+# PyInstaller, lo comprime y lo adjunta a un GitHub Release con notas
+# autogeneradas.
+#
+# El .app queda con firma ad-hoc (la que aplica PyInstaller por defecto en
+# Apple Silicon para poder ejecutarlo) pero SIN firma de Developer ID ni
+# notarización — Gatekeeper mostrará "no se puede verificar el desarrollador"
+# a quien lo descargue. Sin una cuenta de Apple Developer Program no hay
+# forma de evitar eso; el propio README documenta cómo abrirlo igual.
 on:
   push:
     tags:
@@ -12,10 +18,25 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build-and-release:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-build.txt
+
+      - name: Construir Arrendamiento.app
+        run: pyinstaller Arrendamiento.spec --clean --noconfirm
+
+      - name: Comprimir el bundle
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent Arrendamiento.app "Arrendamiento-${{ github.ref_name }}-macos.zip"
 
       - name: Crear GitHub Release
         env:
@@ -23,4 +44,5 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
-            --generate-notes
+            --generate-notes \
+            "dist/Arrendamiento-${{ github.ref_name }}-macos.zip"
