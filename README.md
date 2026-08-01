@@ -102,7 +102,26 @@ El resultado queda en `dist/Arrendamiento.app`. Notas importantes:
 
 - **Dónde viven los datos**: la app empaquetada guarda la base de datos, los documentos y los modelos 3D en `~/Library/Application Support/Arrendamiento/`, **no** dentro del bundle (que puede no ser escribible y se reemplaza en cada reinstalación). Ver `app/paths.py`.
 - **`app/viewer3d/`** (HTML/JS/three.js vendorizado) se empaqueta como recurso de solo lectura dentro del `.app`.
-- **Sin firma de Developer ID ni notarización**: el `.app` queda con firma ad-hoc (la que aplica PyInstaller por defecto en Apple Silicon para poder ejecutarlo), pero no está firmado con un certificado de Apple Developer Program ni notarizado. Gatekeeper mostrará "no se puede verificar el desarrollador" al abrirlo por primera vez — click derecho → Abrir, o `xattr -cr Arrendamiento.app` para quitar el atributo de cuarentena. Firmar/notarizar de verdad requiere una cuenta de pago de Apple Developer Program, fuera del alcance de este repo.
+- **Ícono**: `assets/icon/AppIcon.icns`, generado con `python assets/icon/generate_icon.py` (dibuja el PNG maestro 1024×1024 con Pillow) + `assets/icon/build_icns.sh` (lo convierte a `.icns` con `sips`/`iconutil`, herramientas de macOS). Para cambiarlo: editar `generate_icon.py`, correr ambos scripts, reconstruir.
+
+### Instalarla en /Applications
+
+```bash
+rm -rf /Applications/Arrendamiento.app
+cp -R dist/Arrendamiento.app /Applications/Arrendamiento.app
+```
+Al copiarla así (no descargada) no queda en cuarentena y abre directo, sin pasos extra de Gatekeeper.
+
+### Si la descargas (del GitHub Release) en vez de compilarla vos
+
+El `.app` no tiene firma de Developer ID ni está notarizado (eso requiere una cuenta de pago de Apple Developer Program, fuera del alcance de este repo) — al venir de una descarga, macOS la marca en cuarentena y **Gatekeeper la bloquea** ("no se puede abrir, se moverá a la papelera"). Para abrirla:
+
+1. Quitar la cuarentena (con la ruta completa al `xattr` del sistema — puede haber otro en tu `PATH` que no soporte `-r`):
+   ```bash
+   /usr/bin/xattr -cr ~/Downloads/Arrendamiento.app
+   ```
+2. Doble clic para abrir.
+3. **Si sigue bloqueada** (lo más probable en macOS reciente): **Ajustes del Sistema → Privacidad y Seguridad → Seguridad** — aparece un aviso de que se bloqueó la app con un botón **"Abrir de todos modos"**. Ese botón solo aparece después del primer intento bloqueado.
 
 ## Roadmap (ver plan completo en docs/)
 1. ✅ Modelos SQLAlchemy + CRUD básico (Contrato, Documento, Equipo, Mantenimiento, Pagos, Proveedores)

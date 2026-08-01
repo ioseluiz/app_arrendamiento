@@ -58,7 +58,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="Arrendamiento.app",
-    icon=None,
+    icon="assets/icon/AppIcon.icns",
     bundle_identifier="com.arrendamiento.app",
     info_plist={
         "CFBundleName": "Arrendamiento",
